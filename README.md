@@ -22,7 +22,7 @@ You can add Service Injector to an Xcode project by adding it as a package depen
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/macward/service-injector.git", .upToNextMajor(from: "1.1.0"))
+    .package(url: "https://github.com/macward/service-injector.git", .upToNextMajor(from: "1.0.0"))
 ]
 ```
 and add Target
