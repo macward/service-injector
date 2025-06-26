@@ -192,6 +192,41 @@ final public class ServiceLocator {
         }
     }
 
+    /// Asynchronously locates and returns an instance of the requested service.
+    /// - Parameters:
+    ///   - type: The type of the service to locate.
+    ///   - lifecycle: The lifecycle of the service.
+    ///   - identifier: Optional identifier for the service.
+    /// - Returns: The requested service instance.
+    public static func locateServiceAsync<T>(ofType type: T.Type, withLifecycle lifecycle: ServiceLifecycle, withIdentifier identifier: String? = nil) async throws -> T {
+        let key = identifier ?? String(describing: type.self)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                switch lifecycle {
+                case .singleton:
+                    if let cached = shared.cache[key] as? T {
+                        continuation.resume(returning: cached)
+                        return
+                    }
+                    guard let service = shared.serviceFactories[key]?() as? T else {
+                        continuation.resume(throwing: ServiceLocatorError.serviceNotFound(key))
+                        return
+                    }
+                    shared.cache[key] = service
+                    continuation.resume(returning: service)
+
+                case .runtime:
+                    guard let service = shared.serviceFactories[key]?() as? T else {
+                        continuation.resume(throwing: ServiceLocatorError.serviceNotFound(key))
+                        return
+                    }
+                    continuation.resume(returning: service)
+                }
+            }
+        }
+    }
+
     
     /// Clears the cached instances of services.
     public static func clearCache() {
