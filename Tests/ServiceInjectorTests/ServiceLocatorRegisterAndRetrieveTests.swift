@@ -19,9 +19,9 @@ final class ServiceLocatorRegisterAndRetrieveTests: XCTestCase {
     
     func testServiceRegistrationAndRetrieval() {
         do {
-            try ServiceLocator.register(as: TestServiceProtocol.self, using: TestService())
-            
-            let service: TestServiceProtocol = try ServiceLocator.locateService(ofType: TestServiceProtocol.self)
+            try ServiceLocator.register(as: TestServiceProtocol.self, withLifecycle: .runtime, using: TestService())
+
+            let service: TestServiceProtocol = try ServiceLocator.locateService(ofType: TestServiceProtocol.self, withLifecycle: .runtime)
             
             XCTAssertTrue(service is TestService, "El servicio localizado debe ser de tipo TestService.")
         } catch ServiceLocatorError.serviceAlreadyRegistered(let serviceName) {

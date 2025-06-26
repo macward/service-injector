@@ -18,13 +18,16 @@ enum ServiceLocatorError: Error {
 
 /// A service locator pattern implementation for dependency injection and service management.
 final public class ServiceLocator {
-    
+
+    /// A queue to synchronize access to the underlying storage.
+    private static let queue = DispatchQueue(label: "ServiceLocator.lock")
+
     /// A cache to store initialized services.
     private var cache: [String: Any] = [:]
-    
+
     /// A dictionary of closures that initialize services when needed.
     private var serviceFactories: [String: () -> Any] = [:]
-    
+
     /// The singleton instance of the service locator.
     private static let shared = ServiceLocator()
     
@@ -67,12 +70,14 @@ final public class ServiceLocator {
     /// to maintain the integrity and predictability of your service dependencies.
     public static func register<T>(as type: T.Type, withLifecycle lifecycle: ServiceLifecycle, identifier: String? = nil, using factory: @autoclosure @escaping () -> T) throws {
         let key = identifier ?? String(describing: type.self)
-        guard shared.serviceFactories[key] == nil else {
-            throw ServiceLocatorError.serviceAlreadyRegistered(key)
-        }
-        shared.serviceFactories[key] = factory
-        if lifecycle == .singleton {
-            shared.cache[key] = factory()
+        try queue.sync {
+            if shared.serviceFactories[key] != nil {
+                throw ServiceLocatorError.serviceAlreadyRegistered(key)
+            }
+            shared.serviceFactories[key] = factory
+            if lifecycle == .singleton {
+                shared.cache[key] = factory()
+            }
         }
     }
     
@@ -112,15 +117,17 @@ final public class ServiceLocator {
     ///  components of your application, while respecting the specified lifecycle of the services.
     public static func override<T>(as type: T.Type, withLifecycle lifecycle: ServiceLifecycle, identifier: String? = nil, using factory: @autoclosure @escaping () -> T) {
         let key = identifier ?? String(describing: type.self)
-        
-        // Update the service factory with the new factory closure.
-        shared.serviceFactories[key] = factory
-        
-        // If the service is a singleton and already instantiated, clear it from the cache to ensure the new factory is used next time.
-        if lifecycle == .singleton {
-            shared.cache.removeValue(forKey: key)
+
+        queue.sync {
+            // Update the service factory with the new factory closure.
+            shared.serviceFactories[key] = factory
+
+            // If the service is a singleton and already instantiated, clear it from the cache to ensure the new factory is used next time.
+            if lifecycle == .singleton {
+                shared.cache.removeValue(forKey: key)
+            }
+            // Note: For runtime services, there's no need to clear the cache as they are not cached.
         }
-        // Note: For runtime services, there's no need to clear the cache as they are not cached.
     }
     
     /// Locates and returns an instance of the requested service, managing its lifecycle accordingly.
@@ -163,31 +170,35 @@ final public class ServiceLocator {
     public static func locateService<T>(ofType type: T.Type, withLifecycle lifecycle: ServiceLifecycle, withIdentifier identifier: String? = nil) throws -> T {
         let key = identifier ?? String(describing: type.self)
 
-        switch lifecycle {
-        case .singleton:
-            if let cached = shared.cache[key] as? T {
-                return cached
-            }
-            guard let service = shared.serviceFactories[key]?() as? T else {
-                throw ServiceLocatorError.serviceNotFound(key)
-            }
-            shared.cache[key] = service
-            return service
+        return try queue.sync {
+            switch lifecycle {
+            case .singleton:
+                if let cached = shared.cache[key] as? T {
+                    return cached
+                }
+                guard let service = shared.serviceFactories[key]?() as? T else {
+                    throw ServiceLocatorError.serviceNotFound(key)
+                }
+                shared.cache[key] = service
+                return service
 
-        case .runtime:
-            guard let service = shared.serviceFactories[key]?() as? T else {
-                throw ServiceLocatorError.serviceNotFound(key)
+            case .runtime:
+                guard let service = shared.serviceFactories[key]?() as? T else {
+                    throw ServiceLocatorError.serviceNotFound(key)
+                }
+                // Para servicios con ciclo de vida 'runtime', no almacenamos la instancia en cache.
+                return service
             }
-            // Para servicios con ciclo de vida 'runtime', no almacenamos la instancia en cache.
-            return service
         }
     }
 
     
     /// Clears the cached instances of services.
     public static func clearCache() {
-        shared.cache.removeAll()
-        shared.serviceFactories.removeAll()
+        queue.sync {
+            shared.cache.removeAll()
+            shared.serviceFactories.removeAll()
+        }
     }
     
     /// Unregisters a service with an optional identifier.
@@ -196,7 +207,9 @@ final public class ServiceLocator {
     ///   - identifier: An optional unique identifier for the service.
     public static func unregister<T>(type: T.Type, identifier: String? = nil) {
         let key = identifier ?? String(describing: type.self)
-        shared.serviceFactories.removeValue(forKey: key)
-        shared.cache.removeValue(forKey: key)
+        queue.sync {
+            shared.serviceFactories.removeValue(forKey: key)
+            shared.cache.removeValue(forKey: key)
+        }
     }
 }
