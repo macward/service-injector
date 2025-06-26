@@ -21,7 +21,7 @@ final class InjectPropertyWrapperTests: XCTestCase {
     func testInjectPropertyWrapper() {
         // Registro de un servicio de prueba en el ServiceLocator
         let testService = TestService()
-        try? ServiceLocator.register(as: TestServiceProtocol.self, using: testService)
+        try? ServiceLocator.register(as: TestServiceProtocol.self, withLifecycle: .runtime, using: testService)
         
         // Uso de @Inject para inyectar el servicio en una propiedad
         class TestConsumer {
