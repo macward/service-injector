@@ -52,6 +52,19 @@ class MyViewController: UIViewController {
     }
 }
 ```
+
+### Asynchronous Injection
+`@AsyncInject` allows awaiting services with Swift concurrency:
+```swift
+class AsyncConsumer {
+    @AsyncInject var myService: Task<MyServiceProtocol, Error>
+
+    func load() async throws {
+        let service = try await myService.value
+        service.performAction()
+    }
+}
+```
 ### Unregistering Services
 If needed, you can unregister services:
 ```swift

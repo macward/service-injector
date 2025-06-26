@@ -58,3 +58,25 @@ public struct Inject<T> {
         mutating set { service = newValue }
     }
 }
+
+/// A property wrapper for asynchronous dependency injection.
+@propertyWrapper
+public struct AsyncInject<T> {
+    private var task: Task<T, Error>
+
+    public init(_ lifecycle: ServiceLifecycle = .runtime, identifier: String? = nil) {
+        self.task = Task {
+            try await ServiceLocator.locateServiceAsync(ofType: T.self, withLifecycle: lifecycle, withIdentifier: identifier)
+        }
+    }
+
+    public var wrappedValue: Task<T, Error> {
+        get { task }
+        mutating set { task = newValue }
+    }
+
+    public var projectedValue: Task<T, Error> {
+        get { task }
+        mutating set { task = newValue }
+    }
+}
